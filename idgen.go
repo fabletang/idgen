@@ -1,4 +1,4 @@
-package IdGen
+package idgen
 
 import (
 	"errors"

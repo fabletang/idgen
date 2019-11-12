@@ -1,3 +1,3 @@
-module github.com/fabletang/IdGen
+module github.com/fabletang/idgen
 
 go 1.12
