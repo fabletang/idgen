@@ -90,10 +90,10 @@ func TestIdWorker_FromIp(t *testing.T) {
 	//t.Logf("lastTimeStamp:%v,当前时间:%s\n",lastTimeStamp,time1.In(local).Format(shortForm))
 	t.Logf("lastTimeStamp:%v,当前时间:%s\n", lastTimeStamp, time1.Format(shortForm))
 	t.Logf("workId:%v,seq1:%v,seq2:%v\n", workId, seq1, seq2)
-	for i := 0; i < 0xFF-1; i++ {
+	for i := 0; i < 0x1FF-1; i++ {
 		id2, _ = iw.NextId();
 	}
-	if id2 != id+0xFF {
+	if id2 != id+0x1FF {
 		t.Errorf("id产生错误,id:%v,id2:%v\n", id, id2)
 	}
 	id2, _ = iw.NextId()
@@ -130,10 +130,10 @@ func TestIdWorker_NextId(t *testing.T) {
 	//t.Logf("lastTimeStamp:%v,当前时间:%s\n",lastTimeStamp,time1.In(local).Format(shortForm))
 	t.Logf("lastTimeStamp:%v,当前时间:%s\n", lastTimeStamp, time1.Format(shortForm))
 	t.Logf("workId:%v,seq1:%v,seq2:%v\n", workId, seq1, seq2)
-	for i := 0; i < 0x1FFF-1; i++ {
+	for i := 0; i < 0x3FFF-1; i++ {
 		id2, _ = iw.NextId();
 	}
-	if id2 != id+0x1FFF {
+	if id2 != id+0x3FFF {
 		t.Errorf("id产生错误,id:%v,id2:%v\n", id, id2)
 	}
 	id2, _ = iw.NextId()
