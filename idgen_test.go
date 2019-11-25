@@ -13,7 +13,6 @@ func TestDecode64Str(t *testing.T) {
 		t.Errorf("解码失败")
 	}
 	if rs != int64(^uint(0)>>1) {
-
 		t.Errorf("解码失败")
 	}
 	t.Logf("62进制字符串 %s 10进制解码为 %v\n", str62, rs)
@@ -77,7 +76,7 @@ func TestIdWorker_FromIp(t *testing.T) {
 	if myWorkId != workId {
 		t.Errorf("id产生和解释不一致")
 	}
-	id2, _ := iw.NextId();
+	id2, _ := iw.NextId()
 	time1, lastTimeStamp, workId, seq2, _ := ParseId(id2)
 	if myWorkId != workId {
 		t.Errorf("id产生和解释不一致")
@@ -91,7 +90,7 @@ func TestIdWorker_FromIp(t *testing.T) {
 	t.Logf("lastTimeStamp:%v,当前时间:%s\n", lastTimeStamp, time1.Format(shortForm))
 	t.Logf("workId:%v,seq1:%v,seq2:%v\n", workId, seq1, seq2)
 	for i := 0; i < 0x1FF-1; i++ {
-		id2, _ = iw.NextId();
+		id2, _ = iw.NextId()
 	}
 	if id2 != id+0x1FF {
 		t.Errorf("id产生错误,id:%v,id2:%v\n", id, id2)
@@ -117,7 +116,7 @@ func TestIdWorker_NextId(t *testing.T) {
 	if myWorkId != workId {
 		t.Errorf("id产生和解释不一致")
 	}
-	id2, _ := iw.NextId();
+	id2, _ := iw.NextId()
 	time1, lastTimeStamp, workId, seq2, _ := ParseId(id2)
 	if myWorkId != workId {
 		t.Errorf("id产生和解释不一致,myWorkId:%v,workId:%v\n", myWorkId, workId)
@@ -131,7 +130,7 @@ func TestIdWorker_NextId(t *testing.T) {
 	t.Logf("lastTimeStamp:%v,当前时间:%s\n", lastTimeStamp, time1.Format(shortForm))
 	t.Logf("workId:%v,seq1:%v,seq2:%v\n", workId, seq1, seq2)
 	for i := 0; i < 0x3FFF-1; i++ {
-		id2, _ = iw.NextId();
+		id2, _ = iw.NextId()
 	}
 	if id2 != id+0x3FFF {
 		t.Errorf("id产生错误,id:%v,id2:%v\n", id, id2)
@@ -148,13 +147,13 @@ func TestIdWorker_NextId(t *testing.T) {
 }
 
 func BenchmarkIdWorker_NextId(b *testing.B) {
-	var myWorkId int64 = 111
+	var myWorkId int64 = 7
 	var id int64 = 0
 	iw, _ := NewCustomNodeId(int64(myWorkId))
 	b.StopTimer()
 	b.StartTimer()
 	id, _ = iw.NextId()
-	if (id < 1) {
+	if id < 1 {
 		b.Errorf("id产生错误:%v", id)
 	}
 }
