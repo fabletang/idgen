@@ -76,8 +76,8 @@ func NewNodeIdByIp() (iw *IdWorker, err error) {
 }
 func NewCustomNodeIdAndTimeBackInterval(nodeid, timeBackInterval int64) (iw *IdWorker, err error) {
 	iw = new(IdWorker)
-	if nodeid > 0x7 || nodeid < 0 {
-		return nil, errors.New("worker not fit,must between 0 and 7")
+	if nodeid > 1023 || nodeid < 0 {
+		return nil, errors.New("worker not fit,must between 0 and 1023")
 	}
 	iw.nodeId = nodeid
 	iw.lastTimeStamp = -1
