@@ -12,34 +12,35 @@ import (
 
 /**
  * 以ip后16位掩码作为nodeId, 理论节点数为65536个。足以在k8s这样的环境内保证产生的ID全局唯一。
- * time clash 防止时间回拨，默认允许时间回拨1500毫秒,适应闰秒的情况。
- * 潜在乱序:当nodeId为ip地址的时候，在同10毫秒内，不同的节点上产生的id不是严格递增的。时间回拨也会乱序，比如闰秒。
- * 时间 37 bit,10毫秒产生一批,以北京时间 cst 2011/1/1 1:1:1为标准差，44年左右,id可以持续到 cst 2055/5/21 7:53:15
- * 以ip后16bit为nodeId,每秒可以产生 2**9*100=51200=5.12万个id,一般用于程序本地生产id。
- * 自定义nodeId(3bit,0-7),每10毫秒可以产生 2**14*100=1638400=163.84万个id,一般用于某个数据中心的远程公共id生产服务。
+ * time clash 防止时间回拨，默认允许时间回拨1500毫秒,适应闰秒的情况或者电脑时间误差。
+ * 潜在乱序:由数据结构可以看出，在同10毫秒内，跨节点上产生的id不是严格递增的。
+ * 时间 37 bit,10毫秒单位,以北京时间 cst 2016/6/6 6:6:6为标准差，44年左右,id可以持续到 cst 2059/12/25 12:58:20
+ * 以ip后16bit为nodeId,每秒可以产生 2**8*100=25600=2.56万个id,一般用于程序本地生产id。
+ * 自定义nodeId(10bit,0-1023),每秒可以产生 2**14*100=1638400=163.84万个id,一般用于某个数据中心的远程公共id生产服务。
  * 情况1:
- * nodeId: 8bits(last byte of ip)+8bits (third byte of ip),(example: ip 172.16.1.16 nodeId: 0x0F01)
- * if nodeId&0xFF00!=0xFF00
- * total 64 bit
- *  * +------+-----------------+------------+----------+----------+
- *  * | sign |  delta seconds  | ip node id |time clash| sequence |
- *  * +------+-----------------+-------- ---+----------+----------+
- *  * | 1bit      37bits           16bits        1bit     9bits   |
- *  * +------+-----------------+------------+----------+----------+
+ * isCustom==0
+ * nodeId: 16bit ip as nodeId,(example: ip 172.16.1.16 nodeId: 0x010F)
+ *  * +------+-----------------+----------+--------+----------+----------+
+ *  * | sign |  delta seconds  | isCustom |16bit ip|time clash| sequence |
+ *  * +------+-----------------+----------+--------+----------+----------+
+ *  * | 1bit      37bits       |  1bit:0  | 16bits |   1bit   |  8bits   |
+ *  * +------+-----------------+----------+--------+----------+----------+
  * 情况2:
- * if nodeId&0xFF00==0xFF00
- *  * +------+-----------------+-----------------+----------+----------+
- *  * | sign |  delta seconds  | custom node id  |time clash|sequence  |
- *  * +------+-----------------+-----------------+----------+----------+
- *  * | 1bit       37bits       11bits(0xFF+3bit)    1bit     14bits   |
- *  * +------+-----------------+-----------------+----------+----------+
+ * isCustom==1
+ * nodeId: 0~1023
+ *  * +------+-----------------+----------+--------+----------+----------+
+ *  * | sign |  delta seconds  | isCustom |node id |time clash| sequence |
+ *  * +------+-----------------+----------+--------+----------+----------+
+ *  * | 1bit      37bits       |  1bit:1  | 10bits |   1bit   |  14bits  |
+ *  * +------+-----------------+----------+--------+----------+----------+
+ *
  * origin snowflake
  *     1bit   41bits     10bits       12bits
  * total 64 bit
  * *
  */
 const (
-	CEpoch        = 129381486100 //北京时间 2011/1/1 1:1:1 CST 精确到10毫秒
+	CEpoch        = 146516436600 //北京时间 2016/6/6 6:6:6 CST ,10毫秒单位
 	flakeTimeUnit = 1e7          // nsec, i.e. 10 msec
 	ALPHABET      = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 )
@@ -64,6 +65,7 @@ func NewNodeIdByIpAndTimeBackInterval(timeBackInterval int64) (iw *IdWorker, err
 	iw.nodeId = int64(ip16bit & 0xFFFF)
 	iw.lastTimeStamp = -1
 	iw.lock = new(sync.Mutex)
+	iw.isCustom = false
 	iw.timeBackInterval = timeBackInterval //default 50 ms (5*flakeTimeUnit)
 	return iw, nil
 }
@@ -97,7 +99,7 @@ func (iw *IdWorker) NextId() (id int64, err error) {
 	currTime := iw.timeGen()
 	delta := iw.lastTimeStamp - currTime
 	if delta == 0 {
-		if (iw.isCustom == false && iw.sequence < 0x1FF) || (iw.isCustom == true && iw.sequence < 0x3FFF) {
+		if (iw.isCustom == false && iw.sequence < 0xFF) || (iw.isCustom == true && iw.sequence < 0x3FFF) {
 			iw.sequence++
 		} else {
 			//sleep:=time.Duration(int64(flakeTimeUnit-time.Now().Nanosecond()%flakeTimeUnit)) * time.Nanosecond
@@ -156,30 +158,28 @@ func (iw *IdWorker) NextId() (id int64, err error) {
 		iw.timeBackStamp = currTime
 	}
 	if iw.isCustom == false {
-		id = (currTime-CEpoch)<<26 | iw.nodeId<<10 | iw.timeBackTag<< 9| iw.sequence
+		id = (currTime-CEpoch)<<26 | iw.nodeId<<9 | iw.timeBackTag<<8 | iw.sequence
 	} else {
-		//0x7f8=0b 1111 1111 000
-		id = (currTime-CEpoch)<<26 | (iw.nodeId|0x7f8)<<15 | iw.timeBackTag<<14 | iw.sequence
+		id = (currTime-CEpoch)<<26 | 1<<25 | iw.nodeId<<15 | iw.timeBackTag<<14 | iw.sequence
 	}
 	return id, nil
 }
 
 // ParseId Func: reverse uid to timestamp, workid, seq
 func ParseId(id int64) (t time.Time, ts int64, workerId int64, seq int64, isCustomNodeId bool) {
-	//just custom nodeId, ip地址最后8bit一定不等于0xFF, 自定义workId才为0xFF
-	if id>>18&0xFF != 0xFF {
+	if id>>25&0x1 != 1 {
 		//println("-id", id)
 		isCustomNodeId = false
-		seq = id & 0x1FF //9bit
-		workerId = (id >> 10) & 0xffff
+		seq = id & 0xFF //8bit
+		workerId = (id >> 9) & 0xffff
 		ts = (id >> 26) + CEpoch
 		t = time.Unix(0, ts*flakeTimeUnit)
 	} else {
+		isCustomNodeId = true
 		seq = id & 0x3fff // 14bit
-		workerId = (id >> 15) & 0x7 //0x7=0b111
+		workerId = (id >> 15) & 0x3FF
 		ts = (id >> 26) + CEpoch
 		t = time.Unix(0, ts*flakeTimeUnit)
-		isCustomNodeId = true
 	}
 	return
 }
@@ -194,9 +194,7 @@ func lower16BitPrivateIP() (uint16, error) {
 	if err != nil {
 		return 0, err
 	}
-	//return uint16(ip[2])<<8 + uint16(ip[3]), nil
-	//exchange ip byte
-	return uint16(ip[3])<<8 + uint16(ip[2]), nil
+	return uint16(ip[2])<<8 + uint16(ip[3]), nil
 }
 
 func privateIPv4() (net.IP, error) {
