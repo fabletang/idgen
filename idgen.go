@@ -12,7 +12,7 @@ import (
 
 /**
  * 以ip后16位掩码作为nodeId, 理论节点数为65536个。足以在k8s这样的环境内保证产生的ID全局唯一。
- * time clash 防止时间回拨，默认允许时间回拨1500毫秒,适应闰秒的情况或者电脑时间误差。
+ * time clash 防止时间回拨，默认允许时间回拨1000毫秒,适应闰秒的情况或者电脑时间误差。
  * 潜在乱序:由数据结构可以看出，在同10毫秒内，跨节点上产生的id不是严格递增的。
  * 时间 37 bit,10毫秒单位,以北京时间 cst 2016/6/6 6:6:6为标准差，44年左右,id可以持续到 cst 2059/12/25 12:58:20
  * 以ip后16bit为nodeId,每秒可以产生 2**8*100=25600=2.56万个id,一般用于程序本地生产id。
@@ -72,7 +72,7 @@ func NewNodeIdByIpAndTimeBackInterval(timeBackInterval int64) (iw *IdWorker, err
 
 //以IPv4的后16bit 作为nodeId
 func NewNodeIdByIp() (iw *IdWorker, err error) {
-	return NewNodeIdByIpAndTimeBackInterval(150)
+	return NewNodeIdByIpAndTimeBackInterval(100)
 }
 func NewCustomNodeIdAndTimeBackInterval(nodeid, timeBackInterval int64) (iw *IdWorker, err error) {
 	iw = new(IdWorker)
@@ -89,7 +89,7 @@ func NewCustomNodeIdAndTimeBackInterval(nodeid, timeBackInterval int64) (iw *IdW
 
 // NewCustomNodeId Func: Generate NewCustomNodeId with Given workerid
 func NewCustomNodeId(nodeid int64) (iw *IdWorker, err error) {
-	return NewCustomNodeIdAndTimeBackInterval(nodeid, 150)
+	return NewCustomNodeIdAndTimeBackInterval(nodeid, 100)
 }
 
 // NewId Func: Generate next id
@@ -125,7 +125,7 @@ func (iw *IdWorker) NextId() (id int64, err error) {
 			if iw.timeBackTag == 1 {
 				iw.timeBackTag = 0
 			}
-			iw.timeBackStamp = currTime
+			//iw.timeBackStamp = currTime
 			iw.sequence = 0
 		} else {
 			if backDelta <= iw.timeBackInterval {
@@ -142,10 +142,12 @@ func (iw *IdWorker) NextId() (id int64, err error) {
 					err = errors.New(errStr)
 					return
 				} else {
-					iw.timeBackStamp = currTime
+					//iw.timeBackStamp = currTime
 					iw.sequence = 0
 				}
 			} else {
+				// Avoid DDOS attacks
+				time.Sleep(time.Duration(iw.timeBackInterval*10) * time.Millisecond)
 				err = errors.New("- Clock moved backwards and more than timeBackInterval, Refuse gen id")
 				return
 			}
@@ -154,7 +156,7 @@ func (iw *IdWorker) NextId() (id int64, err error) {
 	}
 
 	iw.lastTimeStamp = currTime
-	if iw.timeBackStamp > 0 {
+	if iw.timeBackStamp < currTime {
 		iw.timeBackStamp = currTime
 	}
 	if iw.isCustom == false {
