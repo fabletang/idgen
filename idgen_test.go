@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/rand"
 	"testing"
+	"time"
 )
 
 var idWorker *IDWorker
@@ -167,29 +168,28 @@ func TestIDWorker_NextID(t *testing.T) {
 	}
 
 }
-
+func TestIDGenByNodeIP(t *testing.T) {
+	//var id int64
+	iw, _ := NewNodeIDByIP()
+	start := time.Now()
+	for i := 0; i < 100000; i++ {
+		iw.NextID()
+	}
+	cost := time.Since(start).Milliseconds()
+	t.Logf("id gen 1000000 times,cost:%dms,speed:%d/s", cost, 100000*1000/cost)
+}
 func BenchmarkIDWorker_NextID(b *testing.B) {
 	var myWorkID int64 = 7
 	//var id int64 = 0
 	var id int64
 	iw, _ := NewCustomNodeID(int64(myWorkID))
-	//b.StopTimer()
-	//b.StartTimer()
-	for n := 0; n < b.N; n++ {
-		id, _ = iw.NextID()
-		if id < 1 {
-			b.Errorf("id产生错误:%v", id)
-		}
+	b.StopTimer()
+	b.StartTimer()
+	id, _ = iw.NextID()
+	if id < 1 {
+		b.Errorf("id产生错误:%v", id)
 	}
 }
 
-//func TestTimeBack (t *testing.T){
-//   iw, _:= NewNodeIDByIpAndTimeBackInterval(int64(6000))// 60 secondes
-//   for i:=0;i<1e7;i++{
-//     _,err:=iw.NextID()
-//     if err!=nil{
-//        t.Error(err)
-//        return
-//     }
-//   }
-//}
+//:!go test -bench="^BenchmarkID" -benchtime=5s -benchmem
+//:!go test -bench="^BenchmarkID" -count=10 -benchmem
