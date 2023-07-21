@@ -173,11 +173,13 @@ func BenchmarkIDWorker_NextID(b *testing.B) {
 	//var id int64 = 0
 	var id int64
 	iw, _ := NewCustomNodeID(int64(myWorkID))
-	b.StopTimer()
-	b.StartTimer()
-	id, _ = iw.NextID()
-	if id < 1 {
-		b.Errorf("id产生错误:%v", id)
+	//b.StopTimer()
+	//b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		id, _ = iw.NextID()
+		if id < 1 {
+			b.Errorf("id产生错误:%v", id)
+		}
 	}
 }
 

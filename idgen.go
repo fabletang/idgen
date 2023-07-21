@@ -14,7 +14,7 @@ import (
  * 以ip后16位掩码作为nodeId, 理论节点数为65536个。足以在k8s这样的环境内保证产生的ID全局唯一。
  * time clash 防止时间回拨，默认允许时间回拨1000毫秒,适应闰秒的情况或者电脑时间误差。
  * 潜在乱序:由数据结构可以看出，在同10毫秒内，跨节点上产生的id不是严格递增的。
- * 时间 37 bit,10毫秒单位,以北京时间 cst 2016/6/6 6:6:6为标准差，44年左右,id可以持续到 cst 2059/12/25 12:58:20
+ * 时间 37 bit,10毫秒单位,以北京时间 2023-07-21T00:00:00+08:00 为标准差，44年左右
  * 以ip后16bit为nodeId,每秒可以产生 2**8*100=25600=2.56万个id,一般用于程序本地生产id。
  * 自定义nodeId(10bit,0-1023),每秒可以产生 2**14*100=1638400=163.84万个id,一般用于某个数据中心的远程公共id生产服务。
  * condition 1:
@@ -40,13 +40,14 @@ import (
  * *
  */
 const (
-	CEpoch        = 146516436600 //北京时间 2016/6/6 6:6:6 CST ,10毫秒单位
+	//CEpoch        = 146516436600 //北京时间 2016/6/6 6:6:6 CST ,10毫秒单位
+	CEpoch        = 168986880000 //2023-07-21T00:00:00+08:00 ,10毫秒单位
 	flakeTimeUnit = 1e7          // nsec, i.e. 10 msec
 	ALPHABET      = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	ALPHABET82    = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@$^*()_-{}[]<>,.`~|"
 )
 
-//IDWorker id worker
+// IDWorker id worker
 type IDWorker struct {
 	nodeID           int64 //节点id
 	lastTimeStamp    int64 //最后时间戳
@@ -58,7 +59,7 @@ type IDWorker struct {
 	isCustom         bool // is or not coustom node id
 }
 
-//IDDetail  Detail of ID
+// IDDetail  Detail of ID
 type IDDetail struct {
 	isCustom    bool      //是否定制
 	nodeID      int64     //节点
@@ -67,7 +68,7 @@ type IDDetail struct {
 	isTimeClash bool      //time back tag
 }
 
-//NewNodeIDByIPAndTimeBackInterval define the ms of backinterval that is allow
+// NewNodeIDByIPAndTimeBackInterval define the ms of backinterval that is allow
 func NewNodeIDByIPAndTimeBackInterval(timeBackInterval int64) (iw *IDWorker, err error) {
 	iw = new(IDWorker)
 	ip16bit, err := lower16BitPrivateIP()
@@ -82,12 +83,12 @@ func NewNodeIDByIPAndTimeBackInterval(timeBackInterval int64) (iw *IDWorker, err
 	return iw, nil
 }
 
-//NewNodeIDByIP 以IPv4的后16bit 作为nodeId
+// NewNodeIDByIP 以IPv4的后16bit 作为nodeId
 func NewNodeIDByIP() (iw *IDWorker, err error) {
 	return NewNodeIDByIPAndTimeBackInterval(100)
 }
 
-//NewCustomNodeIDAndTimeBackInterval custom nodeid and the interval of timeback
+// NewCustomNodeIDAndTimeBackInterval custom nodeid and the interval of timeback
 func NewCustomNodeIDAndTimeBackInterval(nodeid, timeBackInterval int64) (iw *IDWorker, err error) {
 	iw = new(IDWorker)
 	if nodeid > 1023 || nodeid < 0 {
@@ -106,16 +107,14 @@ func NewCustomNodeID(nodeid int64) (iw *IDWorker, err error) {
 	return NewCustomNodeIDAndTimeBackInterval(nodeid, 100)
 }
 
-//NextID Func: Generate next id
+// NextID Func: Generate next id
 func (iw *IDWorker) NextID() (id int64, err error) {
 	iw.lock.Lock()
 	defer iw.lock.Unlock()
 	currTime := iw.timeGen()
 	delta := iw.lastTimeStamp - currTime
 	if delta == 0 {
-		if (iw.isCustom == false && iw.sequence < 0xFF) || (iw.isCustom == true && iw.sequence < 0x3FFF) {
-			iw.sequence++
-		} else {
+		if !(iw.isCustom == false && iw.sequence < 0xFF) && !(iw.isCustom == true && iw.sequence < 0x3FFF) {
 			//sleep 1-10 ms
 			time.Sleep(time.Duration(int64(flakeTimeUnit-time.Now().Nanosecond()%flakeTimeUnit)) * time.Nanosecond)
 			currTime = iw.timeGen()
@@ -123,6 +122,8 @@ func (iw *IDWorker) NextID() (id int64, err error) {
 				delta = iw.lastTimeStamp - currTime + 1
 			}
 			iw.sequence = 0
+		} else {
+			iw.sequence++
 		}
 	}
 	if delta < 0 {
@@ -174,7 +175,7 @@ func (iw *IDWorker) NextID() (id int64, err error) {
 	return id, nil
 }
 
-//ParseID  parse int64 to struct
+// ParseID  parse int64 to struct
 func ParseID(id int64) (idDetail IDDetail, err error) {
 	if id < 83886079 {
 		return idDetail, errors.New("id illegal,should> 83886079")
