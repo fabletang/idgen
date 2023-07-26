@@ -11,7 +11,7 @@ import (
 )
 
 /**
- * 以ip后16位掩码作为nodeId, 理论节点数为65536个。足以在k8s这样的环境内保证产生的ID全局唯一。
+ * 以ip后16位掩码作为nodeId, 理论节点数为65534个。足以在k8s这样的环境内保证产生的ID全局唯一。
  * time clash 防止时间回拨，默认允许时间回拨1000毫秒,适应闰秒的情况或者电脑时间误差。
  * 潜在乱序:由数据结构可以看出，在同10毫秒内，跨节点上产生的id不是严格递增的。
  * 时间 37 bit,10毫秒单位,以北京时间 2023-07-21T00:00:00+08:00 为标准差，44年左右
@@ -177,8 +177,8 @@ func (iw *IDWorker) NextID() (id int64, err error) {
 
 // ParseID  parse int64 to struct
 func ParseID(id int64) (idDetail IDDetail, err error) {
-	if id < 83886079 {
-		return idDetail, errors.New("id illegal,should> 83886079")
+	if id < 67109377 {
+		return idDetail, errors.New("id illegal,should> 67109376")
 	}
 	if id>>25&0x1 != 1 {
 		idDetail.isCustom = false
@@ -269,8 +269,8 @@ func Encode62Str(longNum int64) (str string, err error) {
 func Decode62Str(str62 string) (longNum int64, err error) {
 	// max_int64  7m85Y0n8LzA
 	length := len(str62)
-	if length == 0 || length > 12 {
-		err = errors.New("the length of input string must > 0")
+	if length == 0 || length > 11 {
+		err = errors.New("the length of input string should between 1 to 11")
 		return
 	}
 	for index, char := range []byte(str62) {
@@ -305,7 +305,7 @@ func Decode82Str(str82 string) (longNum int64, err error) {
 	// max_int64  7m85Y0n8LzA
 	length := len(str82)
 	if length == 0 || length > 11 {
-		err = errors.New("the length of input string must > 0")
+		err = errors.New("the length of input string should between 1 to 11")
 		return
 	}
 	for index, char := range []byte(str82) {
