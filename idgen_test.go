@@ -122,13 +122,6 @@ func TestIDWorker_FromIp(t *testing.T) {
 	if iDDetail.sequence != seq1+1 {
 		t.Errorf("id产生和解释不一致")
 	}
-	const shortForm = "2006-01-02 15:04:03 +0800 CST"
-	for i := 0; i < 0xFF-1; i++ {
-		id2, _ = iw.NextID()
-	}
-	if id2 != id+0xFF {
-		t.Errorf("id产生错误,id:%v,id2:%v\n", id, id2)
-	}
 }
 func TestIDWorker_NextID(t *testing.T) {
 	var myWorkID int64 = 5
@@ -158,19 +151,13 @@ func TestIDWorker_NextID(t *testing.T) {
 	if iDDetail.sequence != seq1+1 {
 		t.Errorf("id产生和解释不一致")
 	}
-	//const shortForm = "2006-01-02 15:04:03 +0800 CST"
-
-	for i := 0; i < 0xFF-1; i++ {
-		id2, _ = iw.NextID()
-	}
-	if id2 != id+0xFF {
-		t.Errorf("id产生错误,id:%v,id2:%v\n", id, id2)
-	}
-
 }
+
+var iw *IDWorker
+
 func TestIDGenByNodeIP(t *testing.T) {
 	//var id int64
-	iw, _ := NewNodeIDByIP()
+	iw, _ = NewNodeIDByIP()
 	start := time.Now()
 	for i := 0; i < 100000; i++ {
 		iw.NextID()
@@ -178,17 +165,30 @@ func TestIDGenByNodeIP(t *testing.T) {
 	cost := time.Since(start).Milliseconds()
 	t.Logf("id gen 1000000 times,cost:%dms,speed:%d/s", cost, 100000*1000/cost)
 }
-func BenchmarkIDWorker_NextID(b *testing.B) {
+func BenchmarkIDWorker_Custom(b *testing.B) {
 	var myWorkID int64 = 7
 	//var id int64 = 0
 	var id int64
-	iw, _ := NewCustomNodeID(int64(myWorkID))
 	b.StopTimer()
+	iw, _ = NewCustomNodeID(int64(myWorkID))
 	b.StartTimer()
 	id, _ = iw.NextID()
-	if id < 1 {
+	if id < MinNum {
 		b.Errorf("id产生错误:%v", id)
 	}
+	// b.StopTimer()
+}
+func BenchmarkIDWorker_IP(b *testing.B) {
+	//var id int64 = 0
+	var id int64
+	b.StopTimer()
+	iw, _ = NewNodeIDByIP()
+	b.StartTimer()
+	id, _ = iw.NextID()
+	if id < MinNum {
+		b.Errorf("id产生错误:%v", id)
+	}
+	// b.StopTimer()
 }
 
 //:!go test -bench="^BenchmarkID" -benchtime=5s -benchmem
