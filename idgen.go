@@ -10,41 +10,59 @@ import (
 	"time"
 )
 
-/**
- * 以ip后16位掩码作为nodeId, 理论节点数为65534个。足以在k8s这样的环境内保证产生的ID全局唯一。
- * time clash 防止时间回拨，默认允许时间回拨1000毫秒,适应闰秒的情况或者电脑时间误差。
- * 潜在乱序:由数据结构可以看出，在同10毫秒内，跨节点上产生的id不是严格递增的。
- * 时间 37 bit,10毫秒单位,以北京时间 2023-07-21T00:00:00+08:00 为标准差，44年左右
- * 以ip后16bit为nodeId,每秒可以产生 2**8*100=25600=2.56万个id,一般用于程序本地生产id。
- * 自定义nodeId(10bit,0-1023),每秒可以产生 2**14*100=1638400=163.84万个id,一般用于某个数据中心的远程公共id生产服务。
- * condition 1:
- * nodeID.isCustom==0
- * nodeId: 16bit ip as nodeId,(example: ip 172.16.1.16 nodeId: 0x010F)
- *  * +------+-----------------+----------+--------+----------+----------+
- *  * | sign |  delta seconds  | isCustom |16bit ip|time clash| sequence |
- *  * +------+-----------------+----------+--------+----------+----------+
- *  * | 1bit      37bits       |  1bit:0  | 16bits |   1bit   |  8bits   |
- *  * +------+-----------------+----------+--------+----------+----------+
- * condition 2:
- * nodeID.isCustom==1
- * nodeId: 0~1023
- *  * +------+-----------------+----------+--------+----------+----------+
- *  * | sign |  delta seconds  | isCustom |node id |time clash| sequence |
- *  * +------+-----------------+----------+--------+----------+----------+
- *  * | 1bit      37bits       |  1bit:1  | 10bits |   1bit   |  14bits  |
- *  * +------+-----------------+----------+--------+----------+----------+
- *
- * twitter origin snowflake
- *     1bit   41bits     10bits       12bits
- * total 64 bit
- * *
- */
+/*
+*
+
+	以ip后16位掩码作为nodeId, 理论节点数为65534个。足以在k8s这样的环境内保证产生的ID全局唯一。
+	time clash 防止时间回拨，默认允许时间回拨1000毫秒,适应闰秒的情况或者电脑时间误差。
+	潜在乱序:由数据结构可以看出，在同10毫秒内，跨节点上产生的id不是严格递增的。
+	时间 37 bit,10毫秒单位,以北京时间 2023-07-21T00:00:00+08:00 为标准差，44年左右
+	以ip后16bit为nodeId,每秒可以产生 2**8*100=25600=2.56万个id,一般用于程序本地生产id。
+
+	自定义nodeId(10bit,0-1023),每秒可以产生 2**14*100=1638400=163.84万个id,一般用于某个数据中心的远程公共id生产服务。
+	condition 1:
+
+* nodeID.isCustom==0
+* nodeId: 16bit ip as nodeId,(example: ip 172.16.1.16 nodeId: 0x010F)
+new
+*  * +------+-----------------+----------+--------+----------+----------+
+*  * | sign |  delta seconds  | sequence |16bit ip|time clash| isCustom |
+*  * +------+-----------------+----------+--------+----------+----------+
+*  * | 1bit      37bits       |  8bit    | 16bits |   1bit   |  1bits   |
+*  * +------+-----------------+----------+--------+----------+----------+
+old
+*  * +------+-----------------+----------+--------+----------+----------+
+*  * | sign |  delta seconds  | isCustom |16bit ip|time clash| sequence |
+*  * +------+-----------------+----------+--------+----------+----------+
+*  * | 1bit      37bits       |  1bit:0  | 16bits |   1bit   |  8bits   |
+*  * +------+-----------------+----------+--------+----------+----------+
+* condition 2:
+* nodeID.isCustom==1
+* nodeId: 0~1023
+*  * +------+-----------------+----------+--------+----------+----------+
+*  * | sign |  delta seconds  | sequence |node id |time clash| isCustom |
+*  * +------+-----------------+----------+--------+----------+----------+
+*  * | 1bit      37bits       |  14bit   | 10bits |   1bit   |  1bits   |
+*  * +------+-----------------+----------+--------+----------+----------+
+
+*  * +------+-----------------+----------+--------+----------+----------+
+*  * | sign |  delta seconds  | isCustom |node id |time clash| sequence |
+*  * +------+-----------------+----------+--------+----------+----------+
+*  * | 1bit      37bits       |  1bit:1  | 10bits |   1bit   |  14bits  |
+*  * +------+-----------------+----------+--------+----------+----------+
+*
+* twitter origin snowflake
+*     1bit   41bits     10bits       12bits
+* total 64 bit
+* *
+*/
 const (
 	//CEpoch        = 146516436600 //北京时间 2016/6/6 6:6:6 CST ,10毫秒单位
 	CEpoch        = 168986880000 //2023-07-21T00:00:00+08:00 ,10毫秒单位
 	flakeTimeUnit = 1e7          // nsec, i.e. 10 msec
 	ALPHABET      = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	ALPHABET82    = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@$^*()_-{}[]<>,.`~|"
+	MinNum        = 67117056
 )
 
 // IDWorker id worker
@@ -167,31 +185,42 @@ func (iw *IDWorker) NextID() (id int64, err error) {
 	if iw.timeBackStamp < currTime {
 		iw.timeBackStamp = currTime
 	}
+	//*  * +------+-----------------+----------+--------+----------+----------+
+	// *  * | sign |  delta seconds  | sequence |16bit ip|time clash| isCustom |
+	// *  * +------+-----------------+----------+--------+----------+----------+
+	// *  * | 1bit      37bits       |  8bit    | 16bits |   1bit   |  1bits   |
+	// *  * +------+-----------------+----------+--------+----------+----------+
 	if iw.isCustom == false {
-		id = (currTime-CEpoch)<<26 | iw.nodeID<<9 | iw.timeBackTag<<8 | iw.sequence
+		// id = (currTime-CEpoch)<<26 | iw.nodeID<<9 | iw.timeBackTag<<8 | iw.sequence
+		id = (currTime-CEpoch)<<26 | iw.sequence<<18 | iw.nodeID<<2 | iw.timeBackTag<<1
 	} else {
-		id = (currTime-CEpoch)<<26 | 1<<25 | iw.nodeID<<15 | iw.timeBackTag<<14 | iw.sequence
+		// *  * +------+-----------------+----------+--------+----------+----------+
+		// *  * | sign |  delta seconds  | sequence |node id |time clash| isCustom |
+		// *  * +------+-----------------+----------+--------+----------+----------+
+		// *  * | 1bit      37bits       |  14bit   | 10bits |   1bit   |  1bits   |
+		// *  * +------+-----------------+----------+--------+----------+----------+
+		id = (currTime-CEpoch)<<26 | iw.sequence<<12 | iw.nodeID<<2 | iw.timeBackTag<<1 | 0b1
 	}
 	return id, nil
 }
 
 // ParseID  parse int64 to struct
 func ParseID(id int64) (idDetail IDDetail, err error) {
-	if id < 67109377 {
-		return idDetail, errors.New("id illegal,should> 67109376")
+	if id < 67117056 {
+		return idDetail, errors.New("id illegal,should> 67117056")
 	}
-	if id>>25&0x1 != 1 {
+
+	idDetail.ts = time.Unix(0, ((id>>26)+CEpoch)*flakeTimeUnit)
+	idDetail.isTimeClash = (id&0b10 == 0b10)
+
+	if id&0b1 != 0b1 {
 		idDetail.isCustom = false
-		idDetail.sequence = id & 0xFF //8bit
-		idDetail.ts = time.Unix(0, ((id>>26)+CEpoch)*flakeTimeUnit)
-		idDetail.isTimeClash = (id&0x100 == 0x100)
-		idDetail.nodeID = (id >> 9) & 0xffff
+		idDetail.sequence = (id >> 18) & 0xFF //8bit
+		idDetail.nodeID = (id >> 2) & 0xffff
 	} else {
 		idDetail.isCustom = true
-		idDetail.sequence = id & 0x3FFF //14bit
-		idDetail.ts = time.Unix(0, ((id>>26)+CEpoch)*flakeTimeUnit)
-		idDetail.isTimeClash = ((id>>14)&0x1 == 1)
-		idDetail.nodeID = (id >> 15) & 0x3ff //10bit
+		idDetail.sequence = (id >> 12) & 0x3FFF //14bit
+		idDetail.nodeID = (id >> 2) & 0x3ff     //10bit
 	}
 	return
 }
@@ -212,37 +241,40 @@ func (iw *IDWorker) timeGen() int64 {
 }
 
 func lower16BitPrivateIP() (uint16, error) {
-	ip, err := privateIPv4()
+	ip, err := getPrivateIP()
 	if err != nil {
 		return 0, err
 	}
 	return uint16(ip[2])<<8 + uint16(ip[3]), nil
 }
 
-func privateIPv4() (net.IP, error) {
+func getPrivateIP() (net.IP, error) {
 	as, err := net.InterfaceAddrs()
 	if err != nil {
 		return nil, err
 	}
-
+	var ip net.IP
 	for _, a := range as {
 		ipnet, ok := a.(*net.IPNet)
 		if !ok || ipnet.IP.IsLoopback() {
 			continue
 		}
 
-		ip := ipnet.IP.To4()
-		if isPrivateIPv4(ip) {
+		ip = ipnet.IP.To4()
+		if ip.IsPrivate() {
 			return ip, nil
 		}
 	}
-	return nil, errors.New("no private ip address")
+	if ip.IsUnspecified() {
+		return nil, errors.New("ip is an unspecified address:" + ip.String())
+	}
+	return ip, nil
 }
 
-func isPrivateIPv4(ip net.IP) bool {
-	return ip != nil &&
-		(ip[0] == 10 || ip[0] == 172 && (ip[1] >= 16 && ip[1] < 32) || ip[0] == 192 && ip[1] == 168)
-}
+// func isPrivateIPv4(ip net.IP) bool {
+// 	return ip != nil &&
+// 		(ip[0] == 10 || ip[0] == 172 && (ip[1] >= 16 && ip[1] < 32) || ip[0] == 192 && ip[1] == 168)
+// }
 
 // Encode62Str Func:int64 encode to string
 func Encode62Str(longNum int64) (str string, err error) {
