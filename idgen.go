@@ -87,8 +87,8 @@ type IDDetail struct {
 }
 
 // NewNodeIDByIPAndTimeBackInterval define the ms of backinterval that is allow
-func NewNodeIDByIPAndTimeBackInterval(timeBackInterval int64) (iw *IDWorker, err error) {
-	iw = new(IDWorker)
+func NewNodeIDByIPAndTimeBackInterval(timeBackInterval int64) (iw IDWorker, err error) {
+	iw = IDWorker{}
 	ip16bit, err := lower16BitPrivateIP()
 	if err != nil {
 		return
@@ -102,15 +102,15 @@ func NewNodeIDByIPAndTimeBackInterval(timeBackInterval int64) (iw *IDWorker, err
 }
 
 // NewNodeIDByIP 以IPv4的后16bit 作为nodeId
-func NewNodeIDByIP() (iw *IDWorker, err error) {
+func NewNodeIDByIP() (iw IDWorker, err error) {
 	return NewNodeIDByIPAndTimeBackInterval(100)
 }
 
 // NewCustomNodeIDAndTimeBackInterval custom nodeid and the interval of timeback
-func NewCustomNodeIDAndTimeBackInterval(nodeid, timeBackInterval int64) (iw *IDWorker, err error) {
-	iw = new(IDWorker)
+func NewCustomNodeIDAndTimeBackInterval(nodeid, timeBackInterval int64) (iw IDWorker, err error) {
+	iw = IDWorker{}
 	if nodeid > 1023 || nodeid < 0 {
-		return nil, errors.New("worker not fit,must between 0 and 1023")
+		return iw, errors.New("worker not fit,must between 0 and 1023")
 	}
 	iw.nodeID = nodeid
 	iw.lastTimeStamp = -1
@@ -121,7 +121,7 @@ func NewCustomNodeIDAndTimeBackInterval(nodeid, timeBackInterval int64) (iw *IDW
 }
 
 // NewCustomNodeID Func: Generate NewCustomNodeID with Given workerid
-func NewCustomNodeID(nodeid int64) (iw *IDWorker, err error) {
+func NewCustomNodeID(nodeid int64) (iw IDWorker, err error) {
 	return NewCustomNodeIDAndTimeBackInterval(nodeid, 100)
 }
 
@@ -206,7 +206,7 @@ func (iw *IDWorker) NextID() (id int64, err error) {
 
 // ParseID  parse int64 to struct
 func ParseID(id int64) (idDetail IDDetail, err error) {
-	if id < 67117056 {
+	if id < MinNum {
 		return idDetail, errors.New("id illegal,should> 67117056")
 	}
 

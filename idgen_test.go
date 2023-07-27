@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var idWorker *IDWorker
+var idWorker IDWorker
 
 func init() {
 	idWorker, _ = NewNodeIDByIP()
@@ -153,7 +153,7 @@ func TestIDWorker_NextID(t *testing.T) {
 	}
 }
 
-var iw *IDWorker
+var iw IDWorker
 
 func TestIDGenByNodeIP(t *testing.T) {
 	//var id int64
