@@ -107,19 +107,19 @@ func TestIDWorker_FromIp(t *testing.T) {
 	}
 
 	iDDetail, _ := ParseID(id)
-	seq1 := iDDetail.sequence
+	seq1 := iDDetail.Sequence
 
-	if myWorkID != iDDetail.nodeID {
+	if myWorkID != iDDetail.NodeID {
 		t.Errorf("id产生和解释不一致")
 	}
 	t.Logf("iDDetail 1:%v", iDDetail)
 	id2, _ := iw.NextID()
 	iDDetail, _ = ParseID(id2)
 	t.Logf("iDDetail 2:%v", iDDetail)
-	if myWorkID != iDDetail.nodeID {
+	if myWorkID != iDDetail.NodeID {
 		t.Errorf("id产生和解释不一致")
 	}
-	if iDDetail.sequence != seq1+1 {
+	if iDDetail.Sequence != seq1+1 {
 		t.Errorf("id产生和解释不一致")
 	}
 }
@@ -136,19 +136,19 @@ func TestIDWorker_NextID(t *testing.T) {
 	}
 
 	iDDetail, _ := ParseID(id)
-	seq1 := iDDetail.sequence
+	seq1 := iDDetail.Sequence
 
-	if myWorkID != iDDetail.nodeID {
+	if myWorkID != iDDetail.NodeID {
 		t.Errorf("id产生和解释不一致")
 	}
 	t.Logf("iDDetail 1:%v", iDDetail)
 	id2, _ := iw.NextID()
 	iDDetail, _ = ParseID(id2)
 	t.Logf("iDDetail 2:%v", iDDetail)
-	if myWorkID != iDDetail.nodeID {
+	if myWorkID != iDDetail.NodeID {
 		t.Errorf("id产生和解释不一致")
 	}
-	if iDDetail.sequence != seq1+1 {
+	if iDDetail.Sequence != seq1+1 {
 		t.Errorf("id产生和解释不一致")
 	}
 }

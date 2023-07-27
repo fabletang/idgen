@@ -71,19 +71,19 @@ type IDWorker struct {
 	lastTimeStamp    int64 //最后时间戳
 	sequence         int64 //序列号
 	timeBackTag      int64 //time back tag
-	timeBackInterval int64 // time back interval(*10ms)
+	TimeBackInterval int64 // time back interval(*10ms)
 	timeBackStamp    int64 // the last time happened of time back
 	lock             *sync.Mutex
-	isCustom         bool // is or not coustom node id
+	IsCustom         bool // is or not coustom node id
 }
 
 // IDDetail  Detail of ID
 type IDDetail struct {
-	isCustom    bool      //是否定制
-	nodeID      int64     //节点
-	ts          time.Time //时间
-	sequence    int64     //序列号
-	isTimeClash bool      //time back tag
+	IsCustom    bool      //是否定制
+	NodeID      int64     //节点
+	Ts          time.Time //时间
+	Sequence    int64     //序列号
+	IsTimeClash bool      //time back tag
 }
 
 // NewNodeIDByIPAndTimeBackInterval define the ms of backinterval that is allow
@@ -96,8 +96,8 @@ func NewNodeIDByIPAndTimeBackInterval(timeBackInterval int64) (iw IDWorker, err 
 	iw.nodeID = int64(ip16bit & 0xFFFF)
 	iw.lastTimeStamp = -1
 	iw.lock = new(sync.Mutex)
-	iw.isCustom = false
-	iw.timeBackInterval = timeBackInterval //default 50 ms (5*flakeTimeUnit)
+	iw.IsCustom = false
+	iw.TimeBackInterval = timeBackInterval //default 50 ms (5*flakeTimeUnit)
 	return iw, nil
 }
 
@@ -114,9 +114,9 @@ func NewCustomNodeIDAndTimeBackInterval(nodeid, timeBackInterval int64) (iw IDWo
 	}
 	iw.nodeID = nodeid
 	iw.lastTimeStamp = -1
-	iw.isCustom = true
+	iw.IsCustom = true
 	iw.lock = new(sync.Mutex)
-	iw.timeBackInterval = timeBackInterval //default 50 ms (5*flakeTimeUnit)
+	iw.TimeBackInterval = timeBackInterval //default 50 ms (5*flakeTimeUnit)
 	return iw, nil
 }
 
@@ -132,7 +132,7 @@ func (iw *IDWorker) NextID() (id int64, err error) {
 	currTime := iw.timeGen()
 	delta := iw.lastTimeStamp - currTime
 	if delta == 0 {
-		if !(iw.isCustom == false && iw.sequence < 0xFF) && !(iw.isCustom == true && iw.sequence < 0x3FFF) {
+		if !(iw.IsCustom == false && iw.sequence < 0xFF) && !(iw.IsCustom == true && iw.sequence < 0x3FFF) {
 			//sleep 1-10 ms
 			time.Sleep(time.Duration(int64(flakeTimeUnit-time.Now().Nanosecond()%flakeTimeUnit)) * time.Nanosecond)
 			currTime = iw.timeGen()
@@ -158,20 +158,20 @@ func (iw *IDWorker) NextID() (id int64, err error) {
 			}
 			iw.sequence = 0
 		} else {
-			if backDelta <= iw.timeBackInterval {
+			if backDelta <= iw.TimeBackInterval {
 				//sleep backDelta*10+10 ms
 				time.Sleep(time.Duration(backDelta*10+10) * time.Millisecond)
 				currTime = iw.timeGen()
 				//check clock again
 				if currTime < iw.timeBackStamp {
-					errStr := fmt.Sprintf("Clock moved backwards and more than timeBackInterval:%d ms, Refuse gen id", iw.timeBackInterval*10)
+					errStr := fmt.Sprintf("Clock moved backwards and more than timeBackInterval:%d ms, Refuse gen id", iw.TimeBackInterval*10)
 					err = errors.New(errStr)
 				} else {
 					iw.sequence = 0
 				}
 			} else {
 				// Avoid DDOS attacks
-				time.Sleep(time.Duration(iw.timeBackInterval*10) * time.Millisecond)
+				time.Sleep(time.Duration(iw.TimeBackInterval*10) * time.Millisecond)
 				err = errors.New("- Clock moved backwards and more than timeBackInterval, Refuse gen id")
 			}
 			if err != nil {
@@ -190,7 +190,7 @@ func (iw *IDWorker) NextID() (id int64, err error) {
 	// *  * +------+-----------------+----------+--------+----------+----------+
 	// *  * | 1bit      37bits       |  8bit    | 16bits |   1bit   |  1bits   |
 	// *  * +------+-----------------+----------+--------+----------+----------+
-	if iw.isCustom == false {
+	if iw.IsCustom == false {
 		// id = (currTime-CEpoch)<<26 | iw.nodeID<<9 | iw.timeBackTag<<8 | iw.sequence
 		id = (currTime-CEpoch)<<26 | iw.sequence<<18 | iw.nodeID<<2 | iw.timeBackTag<<1
 	} else {
@@ -210,29 +210,29 @@ func ParseID(id int64) (idDetail IDDetail, err error) {
 		return idDetail, errors.New("id illegal,should> 67117056")
 	}
 
-	idDetail.ts = time.Unix(0, ((id>>26)+CEpoch)*flakeTimeUnit)
-	idDetail.isTimeClash = (id&0b10 == 0b10)
+	idDetail.Ts = time.Unix(0, ((id>>26)+CEpoch)*flakeTimeUnit)
+	idDetail.IsTimeClash = (id&0b10 == 0b10)
 
 	if id&0b1 != 0b1 {
-		idDetail.isCustom = false
-		idDetail.sequence = (id >> 18) & 0xFF //8bit
-		idDetail.nodeID = (id >> 2) & 0xffff
+		idDetail.IsCustom = false
+		idDetail.Sequence = (id >> 18) & 0xFF //8bit
+		idDetail.NodeID = (id >> 2) & 0xffff
 	} else {
-		idDetail.isCustom = true
-		idDetail.sequence = (id >> 12) & 0x3FFF //14bit
-		idDetail.nodeID = (id >> 2) & 0x3ff     //10bit
+		idDetail.IsCustom = true
+		idDetail.Sequence = (id >> 12) & 0x3FFF //14bit
+		idDetail.NodeID = (id >> 2) & 0x3ff     //10bit
 	}
 	return
 }
 
 func (idDetail IDDetail) String() string {
 	var nodeStr string
-	if idDetail.isCustom {
-		nodeStr = fmt.Sprintf("%d", idDetail.nodeID)
+	if idDetail.IsCustom {
+		nodeStr = fmt.Sprintf("%d", idDetail.NodeID)
 	} else {
-		nodeStr = fmt.Sprintf("%d.%d", idDetail.nodeID>>8&0xFF, idDetail.nodeID&0xFF)
+		nodeStr = fmt.Sprintf("%d.%d", idDetail.NodeID>>8&0xFF, idDetail.NodeID&0xFF)
 	}
-	return fmt.Sprintf("IDDetail-[isCustom:%v,nodeId:%d,nodeID_Str:%s,ts:%s,sequence:%d,isTimeClash:%v]", idDetail.isCustom, idDetail.nodeID, nodeStr, idDetail.ts.Format("2006-01-02 15:04:05.000"), idDetail.sequence, idDetail.isTimeClash)
+	return fmt.Sprintf("IDDetail-[isCustom:%v,nodeId:%d,nodeID_Str:%s,ts:%s,sequence:%d,isTimeClash:%v]", idDetail.IsCustom, idDetail.NodeID, nodeStr, idDetail.Ts.Format("2006-01-02 15:04:05.000"), idDetail.Sequence, idDetail.IsTimeClash)
 }
 
 // return 10ms unit
